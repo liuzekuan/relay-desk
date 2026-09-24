@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relay Desk · OpenAI / Claude 检测</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/vendor/lucide.min.js"></script>
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Relay Desk 首页"><i data-lucide="scan-line"></i><span>Relay Desk<small>MODEL CHECK</small></span></a>
+    <nav aria-label="主导航">
+      <button class="nav active" data-view="desk"><i data-lucide="layout-dashboard"></i>检测工作台</button>
+      <button class="nav" data-view="providers"><i data-lucide="waypoints"></i>中转配置<span id="provider-count" class="nav-count">0</span></button>
+      <button class="nav" data-view="history"><i data-lucide="history"></i>历史批次</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <a href="http://127.0.0.1:8765/" target="_blank" rel="noreferrer"><i data-lucide="external-link"></i>官方检测器 / 更新</a>
+      <div class="local-state"><span class="dot"></span>本机工作区 <i data-lucide="shield-check"></i></div>
+    </div>
+  </aside>
+  <main>
+    <header class="topbar"><span>工作区 <span class="slash">/</span> <span id="breadcrumb">检测工作台</span></span><span id="connection" class="connection">正在连接</span></header>
+    <div class="content">
+      <div class="mode-switch" role="group" aria-label="检测类型"><button data-mode="gpt" class="active" aria-pressed="true">OpenAI 检测</button><button data-mode="claude" aria-pressed="false">Claude 检测</button></div>
+      <div id="demo" class="notice" hidden>演示模式 · 使用模拟线路与结果，不会调用真实 API。</div>
+      <div id="error" class="error-banner" role="alert" hidden></div>
+      <div id="unresolved" class="notice" hidden><span>有尚未确认结束的历史任务</span><div><button id="recover">恢复查询</button><button id="acknowledge">核对未知任务</button></div></div>
+      <section class="page-heading"><div><h1 id="page-title">OpenAI 检测</h1><p id="page-meta">OpenAI / Responses</p></div><div class="heading-actions"><button id="refresh" class="icon-button" title="重新读取配置并连接检测器" aria-label="刷新"><i data-lucide="refresh-cw"></i></button><button id="add" class="secondary"><i data-lucide="plus"></i>新增中转</button></div></section>
+      <section id="run-settings" class="settings" aria-label="检测设置">
+        <label>验证模型<select id="claimed" aria-label="验证模型"><option value="">等待基准</option></select></label>
+        <label>检测档位<select id="tier"><option value="low">快速</option><option value="medium">标准</option><option value="high">深入</option></select></label>
+        <label>并行中转<select id="parallel"><option value="1">1 个</option><option value="2" selected>2 个</option><option value="3">3 个</option><option value="4">4 个</option></select></label>
+        <div class="run-actions"><button id="stop" class="danger" hidden><i data-lucide="square"></i>停止批次</button><button id="start" class="primary" disabled><i data-lucide="play"></i><span>开始检测</span><span id="selected-count" class="button-count">0</span></button></div>
+        <div class="budget-line"><span id="budget">等待检测器就绪</span><span id="baseline"></span></div>
+      </section>
+      <section id="model-settings" class="model-settings" hidden><form id="model-form"><label for="request-model">请求模型</label><input id="request-model" maxlength="256" required autocomplete="off"><button type="submit">保存模型</button></form><span data-protocol-label>OpenAI / Responses</span></section>
+      <section id="batch-summary" class="batch-summary" hidden aria-label="批次概览"></section>
+      <div class="table-toolbar"><div class="view-tabs" id="filters"><button class="active" data-filter="all">全部中转 <span id="all-count">0</span></button><button data-filter="attention">需要关注 <span id="attention-count">0</span></button></div><div class="table-actions"><button id="retry" class="text-button"><i data-lucide="rotate-ccw"></i>重测所选失败项</button><button id="copy" class="icon-button" title="复制结果汇总" aria-label="复制结果汇总"><i data-lucide="copy"></i></button><button id="export" class="icon-button" title="导出 CSV" aria-label="导出 CSV"><i data-lucide="download"></i></button></div></div>
+      <div id="table-container" class="table-container"></div>
+      <footer class="workspace-footer"><span id="footer-status" role="status">正在读取本地数据</span><span id="batch-date"></span></footer>
+    </div>
+  </main>
+  <dialog id="provider-dialog" class="sheet" aria-labelledby="provider-title"><form id="provider-form" autocomplete="off"><div class="dialog-heading"><div><h2 id="provider-title">新增中转</h2><p data-protocol-label>OpenAI / Responses</p></div><button type="button" class="icon-button close-dialog" aria-label="关闭"><i data-lucide="x"></i></button></div><label for="provider-name">中转名称</label><input id="provider-name" name="name" maxlength="256" required placeholder="例如：主力线路"><label for="provider-api">API 地址</label><input id="provider-api" name="api" type="url" required placeholder="https://relay.example/v1"><label for="provider-key">API Key <span id="key-status"></span></label><div class="key-input"><input id="provider-key" name="key" type="password" autocomplete="new-password" placeholder="输入 API Key"><button type="button" id="toggle-key" class="icon-button" aria-label="显示输入的 Key" title="显示输入的 Key"><i data-lucide="eye"></i></button></div><p id="provider-error" class="form-error" role="alert"></p><div class="dialog-actions"><button type="button" class="close-dialog">取消</button><button type="submit" class="primary">保存中转</button></div></form></dialog>
+  <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title"><h2 id="confirm-title"></h2><p id="confirm-message"></p><div class="dialog-actions"><button id="confirm-cancel">取消</button><button id="confirm-ok" class="danger">确认</button></div></dialog>
+  <dialog id="details-dialog" class="details-dialog" aria-labelledby="details-title"><div class="dialog-heading"><h2 id="details-title">检测详情</h2><button class="icon-button close-dialog" aria-label="关闭"><i data-lucide="x"></i></button></div><div id="details-body"></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

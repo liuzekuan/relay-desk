@@ -1,0 +1,30 @@
+name: Latest Upstream Compatibility
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 2 * * *'
+permissions:
+  contents: read
+jobs:
+  latest-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download and verify latest official source
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -B meow-local-tools/fetch_upstream.py --destination .upstream
+      - name: Prepare isolated CI dependencies
+        run: python -m pip install -r .upstream/requirements.txt
+      - name: Exercise official routes with fake transport
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.upstream
+        run: python -B meow-local-tools/verify_detector.py

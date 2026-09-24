@@ -1,0 +1,25 @@
+name: Checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -B meow-local-tools/audit_publication.py --history
+      - run: python -B -m unittest discover -s meow-local-tools -p 'test_*.py' -v
+      - run: node --test meow-local-tools/test_results.cjs
+      - run: node --check meow-local-tools/web/app.js

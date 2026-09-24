@@ -1,0 +1,6 @@
+{
+  "name": "codex-relay-desk-assets",
+  "private": true,
+  "scripts": {"vendor": "node vendor.cjs"},
+  "dependencies": {"lucide": "^0.468.0"}
+}

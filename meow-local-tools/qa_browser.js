@@ -1,0 +1,56 @@
+(async () => {
+  const assert = (value, message) => { if (!value) throw new Error(message); };
+  const wait = async predicate => {
+    const deadline = Date.now() + 20000;
+    while (!predicate()) {
+      if (Date.now() > deadline) throw new Error('UI timeout');
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  };
+  assert(state.demo, 'QA must run only in demo mode');
+  const initialHistory = state.history.length;
+  document.querySelector('[data-view="providers"]').click();
+  document.getElementById('add').click();
+  document.getElementById('provider-name').value = 'QA 临时中转';
+  document.getElementById('provider-api').value = 'https://demo-0.invalid/v1';
+  document.getElementById('provider-key').value = 'fake-browser-qa-secret';
+  document.querySelector('#provider-form button[type=submit]').click();
+  await wait(() => !document.getElementById('provider-dialog').open);
+  await wait(() => providers().length === 5);
+  let added = providers().find(p => p.name === 'QA 临时中转');
+  assert(!JSON.stringify(state).includes('fake-browser-qa-secret'), 'Saved key leaked to browser state');
+  document.querySelector(`[data-action="edit"][data-id="${added.id}"]`).click();
+  assert(document.getElementById('provider-key').value === '', 'Key must not be loaded into edit form');
+  document.getElementById('provider-name').value = 'QA 已修改';
+  document.querySelector('#provider-form button[type=submit]').click();
+  await wait(() => !document.getElementById('provider-dialog').open);
+  await wait(() => providers().some(p => p.name === 'QA 已修改'));
+  added = providers().find(p => p.name === 'QA 已修改');
+  document.querySelector(`[data-action="delete"][data-id="${added.id}"]`).click();
+  document.getElementById('confirm-ok').click();
+  await wait(() => !document.getElementById('confirm-dialog').open);
+  await wait(() => providers().length === 4);
+  assert(state.history.length === initialHistory, 'CRUD triggered a test');
+  document.querySelector('[data-view="desk"]').click();
+  document.getElementById('select-all').click();
+  assert(selected.size === 4, 'Select all failed');
+  document.getElementById('start').click();
+  await wait(() => state.busy);
+  assert(document.getElementById('add').disabled, 'Config mutation must be disabled during a run');
+  await wait(() => !state.busy && state.history.length > initialHistory);
+  assert(state.history[0].rows.length === 4, 'Batch selection lost');
+  assert(state.history[0].rows.some(r => r.status === 'failed'), 'Failure fixture absent');
+  assert(state.history[0].rows.some(r => r.verdict === 'mismatch'), 'Mismatch fixture absent');
+  document.querySelector('[data-filter="attention"]').click();
+  assert(document.querySelectorAll('tbody tr').length === 3, 'Attention filter failed');
+  document.querySelector('[data-action="details"]').click();
+  assert(document.getElementById('details-dialog').open, 'Details did not open');
+  document.querySelector('#details-dialog .close-dialog').click();
+  document.querySelector('[data-view="history"]').click();
+  document.querySelector('button[data-batch]').click();
+  assert(document.getElementById('page-title').textContent.endsWith('批次详情'), 'History details failed');
+  document.getElementById('back-history').click();
+  assert(document.getElementById('page-title').textContent.endsWith('历史批次'), 'Back to history failed');
+  document.querySelector('[data-view="desk"]').click();
+  return {passed:true, checks:['provider add/edit/delete','key not returned','CRUD never runs tests','select all','batch progress','failure/mismatch results','attention filter','details','history navigation'], history:state.history.length};
+})()

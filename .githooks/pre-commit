@@ -1,0 +1,5 @@
+#!/bin/sh
+if command -v python3 >/dev/null 2>&1 && python3 -c 'import tomllib' >/dev/null 2>&1; then
+  exec python3 -B meow-local-tools/audit_publication.py
+fi
+exec python -B meow-local-tools/audit_publication.py
