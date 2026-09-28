@@ -11,7 +11,7 @@ let token = '', state = null, view = 'desk', filter = 'all', selected = new Set(
 let mode = 'gpt', switching = false;
 const family = (value=mode) => value === 'claude' ? 'Claude' : 'OpenAI';
 const protocol = () => mode === 'claude' ? 'Claude / Messages' : 'OpenAI / Responses';
-let renderKey = '', estimate = null, estimateKey = '', estimateSerial = 0, inFlight = false, editId = null, editRevision = '', modelRevision = '', confirmAction = null, toastTimer;
+let renderKey = '', estimate = null, estimateKey = '', estimateSerial = 0, inFlight = false, editId = null, editRevision = '', confirmAction = null, toastTimer;
 const date = (value) => value ? new Date(value).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) : '';
 const pct = (value) => value == null ? '—' : `${(value * 100).toFixed(2)}%`;
 const duration = (value) => `${Math.floor((value || 0)/60)}:${String(Math.round(value || 0)%60).padStart(2,'0')}`;
@@ -33,21 +33,15 @@ async function switchMode(next) {
   estimate = null; estimateKey = ''; estimateSerial++;
   $('start').disabled = true; $('add').disabled = true; $('retry').disabled = true;
   $('copy').disabled = true; $('export').disabled = true;
-  $('model-form').querySelector('button').disabled = true;
   $('table-container').innerHTML = empty('正在读取 ' + family() + ' 配置', '');
   document.querySelectorAll('[data-mode]').forEach(el => el.disabled = true);
   try {
     await refresh();
-    if (view === 'providers' && state) {
-      $('request-model').value = state.config?.model || '';
-      modelRevision = state.config?.revision;
-    }
   } finally { switching = false; document.querySelectorAll('[data-mode]').forEach(el=>el.disabled=false); if(state) render(); }
 }
 function setView(next) {
   view = next; filter = 'all'; renderKey = '';
   if (view === 'desk') batchId = null;
-  if (view === 'providers') { $('request-model').value = state?.config?.model || ''; modelRevision = state?.config?.revision; }
   render();
 }
 function statusTag(r) {
@@ -119,11 +113,10 @@ function render() {
   const runningHere = state.busy && state.active_mode === mode;
   const titles={desk:family()+' 检测',providers:family()+' 中转配置',history:family()+(batchId?' 批次详情':' 历史批次')};
   $('page-title').textContent=titles[view]; $('breadcrumb').textContent=titles[view];
-  $('page-meta').textContent=historic ? batchId?`${date(current?.created_at)} · ${current?.request_model || ''}`:`${state.history.length} 个本地批次` : managing?`${providers().length} 个已配置中转 · ${protocol()}`:`请求模型 ${config?.model || '—'} · ${protocol()}`;
+  $('page-meta').textContent=historic ? batchId?`${date(current?.created_at)} · ${current?.request_model || ''}`:`${state.history.length} 个本地批次` : managing?`${providers().length} 个已配置中转 · ${protocol()}`:`请求模型 ${$('claimed').value || '—'} · ${protocol()} · 跟随验证模型`;
   document.title = 'Relay Desk · ' + family() + ' 检测';
   document.querySelectorAll('[data-protocol-label]').forEach(el=>el.textContent=protocol());
   document.querySelectorAll('[data-mode]').forEach(el=>{el.classList.toggle('active',el.dataset.mode===mode);el.setAttribute('aria-pressed',String(el.dataset.mode===mode));el.disabled=switching||inFlight;});
-  $('model-form').querySelector('button').disabled=state.busy || !config;
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('active',el.dataset.view===view));
   $('provider-count').textContent=providers().length;
   $('connection').textContent=state.connecting?'正在连接':state.package?'检测器已连接':'检测器未连接';
@@ -134,7 +127,7 @@ function render() {
   $('unresolved').querySelector('span').textContent=family(state.blocked_mode)+' 有尚未确认结束的历史任务';
   $('recover').textContent=state.blocked_mode && state.blocked_mode!==mode?'切换至 '+family(state.blocked_mode):'恢复查询';
   $('acknowledge').hidden=!unresolved?.rows.some(r=>['unknown','starting'].includes(r.status)&&!r.session_id);
-  $('run-settings').hidden=view!=='desk'; $('model-settings').hidden=!managing;
+  $('run-settings').hidden=view!=='desk';
   $('add').hidden=historic; $('add').disabled=state.busy || !config;
   $('run-settings').querySelectorAll('select').forEach(el => el.disabled=state.busy);
   $('stop').hidden=!state.busy;
@@ -175,12 +168,15 @@ async function refresh() {
   if(requestedMode!==mode) return;
   state=snapshot;
   selected=new Set([...selected].filter(id=>providers().some(p=>p.id===id)));
-  const options=state.package?.models.filter(m=>m.id!=='other').map(m=>m.id)||[];
+  const options=state.package?.models.filter(m=>!m.reference_only && m.id!=='other').map(m=>m.id)||[];
   if ($('claimed').dataset.models!==JSON.stringify(options)) {
     const previous=$('claimed').value;
     $('claimed').innerHTML=options.map(id=>`<option value="${esc(id)}">${esc(id)}</option>`).join('');
     $('claimed').value=options.includes(previous)?previous:options.includes(state.config?.model)?state.config.model:options[0]||'';
     $('claimed').dataset.models=JSON.stringify(options);
+  }
+  if (state.busy && state.active_mode===mode && options.includes(state.current?.claimed_model)) {
+    $('claimed').value=state.current.claimed_model;
   }
   render(); await updateEstimate();
 }
@@ -216,6 +212,7 @@ document.querySelectorAll('[data-filter]').forEach(el=>el.onclick=()=>{filter=el
 $('add').onclick=()=>editProvider();
 $('refresh').onclick=()=>action(async()=>{estimateKey=''; await api('connect',{}); await refresh(); toast('已重新读取配置');});
 $('tier').onchange=()=>updateEstimate();
+$('claimed').onchange=()=>render();
 $('start').onclick=()=>action(()=>start([...selected]));
 $('stop').onclick=()=>confirm('停止当前批次？','已完成的结果会保留，排队中的中转不再发起。','停止批次',()=>api('stop',{}));
 $('retry').onclick=()=>action(()=>start(resultEntries().map(e=>e.row).filter(r=>selected.has(r.provider_id)&&retryable.has(r.status)).map(r=>r.provider_id)));
@@ -227,7 +224,6 @@ document.querySelectorAll('.close-dialog').forEach(el=>el.onclick=()=>el.closest
 $('provider-dialog').addEventListener('close',()=>{$('provider-key').value='';});
 $('toggle-key').onclick=()=>{$('provider-key').type=$('provider-key').type==='password'?'text':'password';$('toggle-key').setAttribute('aria-label',$('provider-key').type==='password'?'显示输入的 Key':'隐藏输入的 Key');};
 $('provider-form').onsubmit=async event=>{event.preventDefault();const submit=event.submitter;submit.disabled=true;try{await api('provider/'+(editId?'edit':'add'),{revision:editRevision,id:editId,name:$('provider-name').value,api:$('provider-api').value,key:$('provider-key').value});$('provider-dialog').close();await refresh();toast('中转已保存');}catch(error){$('provider-error').textContent=error.message;}finally{submit.disabled=false;}};
-$('model-form').onsubmit=event=>{event.preventDefault();action(async()=>{await api('provider/model',{revision:modelRevision,model:$('request-model').value});await refresh();modelRevision=state.config.revision;toast('请求模型已保存');});};
 $('table-container').onchange=event=>{const el=event.target;if(el.dataset.select){el.checked?selected.add(el.dataset.select):selected.delete(el.dataset.select);}else if(el.id==='select-all'){document.querySelectorAll('[data-select]').forEach(box=>el.checked?selected.add(box.dataset.select):selected.delete(box.dataset.select));}render();};
 $('table-container').onclick=event=>{const b=event.target.closest('[data-batch]');if(b){batchId=b.dataset.batch;render();return;}const button=event.target.closest('[data-action]');if(!button)return;const {action:kind,id}=button.dataset;
   if(kind==='add'||kind==='edit')editProvider(id||null);
@@ -239,4 +235,4 @@ $('batch-summary').onclick=event=>{if(event.target.closest('#back-history')){bat
 $('copy').onclick=()=>action(async()=>{await navigator.clipboard.writeText(`${family()} 中转检测 | ${view==='history'?date(batch().created_at):'各中转最近结果'}\n`+[headers,...summaryRows()].map(r=>r.join('\t')).join('\n'));toast('已复制结果汇总');});
 $('export').onclick=()=>{const safe=v=>/^[=+\-@\t\r\n]/.test(String(v))?"'"+v:v;const csv='\uFEFF'+[headers,...summaryRows()].map(row=>row.map(v=>'"'+String(safe(v)).replaceAll('"','""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`relay-${view==='history'?batch().id.slice(0,8):mode+'-latest'}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);};
 icons();
-action(async()=>{const bootstrap=await api('bootstrap');if(bootstrap.api_version!==2){$('error').hidden=false;$('error').textContent='后台版本已更新，请重新双击 start.cmd（Mac 使用 start.command）打开新版工作台。';return;}token=bootstrap.token;await poll();});
+action(async()=>{const bootstrap=await api('bootstrap');if(bootstrap.api_version!==3){$('error').hidden=false;$('error').textContent='后台版本已更新，请重新双击 start.cmd（Mac 使用 start.command）打开新版工作台。';return;}token=bootstrap.token;await poll();});

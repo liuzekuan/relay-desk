@@ -161,7 +161,8 @@ class BatchEngine:
             mode = package.get("mode", "gpt")
             if not payloads or any(p["preset"].get("mode", "gpt") != mode for p in payloads):
                 raise ImportIssue("中转协议与检测基准不一致。")
-            if claimed not in {m["id"] for m in package["models"]}:
+            if claimed not in {m["id"] for m in package["models"]
+                               if not m.get("reference_only") and m["id"] != "other"}:
                 raise ImportIssue("验证模型不在当前基准中，请重新选择。")
             estimate = self.client.request("/api/run/estimate", {
                 "package_id": package["id"], "package_version": package["version"],
@@ -169,7 +170,7 @@ class BatchEngine:
             runtime["retry_budget"] = estimate["retry_budget"]
             batch = {"schema": 1, "mode": mode, "id": uuid.uuid4().hex, "created_at": now(), "finished_at": None,
                      "benchmark": {k: package[k] for k in ("id", "version", "content_sha256")},
-                     "claimed_model": claimed, "request_model": payloads[0]["preset"]["model"],
+                     "claimed_model": claimed, "request_model": claimed,
                      "tier": tier, "parallel": parallel, "planned": estimate["logical_requests"],
                      "max_attempts": estimate["maximum_http_attempts"], "rows": []}
             for payload in payloads:

@@ -26,7 +26,7 @@ from detector_client import ImportIssue, LocalClient
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = Path(__file__).resolve().parent / "web"
-API_VERSION = 2
+API_VERSION = 3
 
 
 def detector_command(app):
@@ -190,7 +190,8 @@ class Workbench:
                 if len(selected) != len(set(ids)):
                     raise ImportIssue("选择中包含已删除的中转，请刷新。")
                 claimed, tier, parallel = data.get("claimed"), data.get("tier"), data.get("parallel")
-                if claimed not in {m["id"] for m in package["models"]} or tier not in {"low", "medium", "high"}:
+                if claimed not in {m["id"] for m in package["models"]
+                                   if not m.get("reference_only") and m["id"] != "other"} or tier not in {"low", "medium", "high"}:
                     raise ImportIssue("模型或档位无效。")
                 if type(parallel) is not int or not 1 <= parallel <= 4:
                     raise ImportIssue("并行中转数须为 1 到 4。")

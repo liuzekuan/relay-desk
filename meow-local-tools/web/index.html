@@ -37,7 +37,6 @@
         <div class="run-actions"><button id="stop" class="danger" hidden><i data-lucide="square"></i>停止批次</button><button id="start" class="primary" disabled><i data-lucide="play"></i><span>开始检测</span><span id="selected-count" class="button-count">0</span></button></div>
         <div class="budget-line"><span id="budget">等待检测器就绪</span><span id="baseline"></span></div>
       </section>
-      <section id="model-settings" class="model-settings" hidden><form id="model-form"><label for="request-model">请求模型</label><input id="request-model" maxlength="256" required autocomplete="off"><button type="submit">保存模型</button></form><span data-protocol-label>OpenAI / Responses</span></section>
       <section id="batch-summary" class="batch-summary" hidden aria-label="批次概览"></section>
       <div class="table-toolbar"><div class="view-tabs" id="filters"><button class="active" data-filter="all">全部中转 <span id="all-count">0</span></button><button data-filter="attention">需要关注 <span id="attention-count">0</span></button></div><div class="table-actions"><button id="retry" class="text-button"><i data-lucide="rotate-ccw"></i>重测所选失败项</button><button id="copy" class="icon-button" title="复制结果汇总" aria-label="复制结果汇总"><i data-lucide="copy"></i></button><button id="export" class="icon-button" title="导出 CSV" aria-label="导出 CSV"><i data-lucide="download"></i></button></div></div>
       <div id="table-container" class="table-container"></div>

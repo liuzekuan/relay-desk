@@ -115,6 +115,33 @@ class DashboardTests(unittest.TestCase):
                 self.app.launch(self.body() | patch)
         self.assertFalse(self.client.sessions)
 
+    def test_selected_model_overrides_old_config_for_single_and_batch_runs(self):
+        original = self.store.path.read_bytes()
+        for count, claimed in ((1, "gpt-5.6-sol"), (2, "gpt-6-astra")):
+            with self.subTest(count=count, claimed=claimed):
+                before = set(self.client.sessions)
+                self.app.launch(self.body(count) | {"claimed": claimed})
+                self.app.worker.join(5)
+                self.assertFalse(self.app.busy)
+                added = set(self.client.sessions) - before
+                self.assertEqual(len(added), count)
+                for identity in added:
+                    request = self.client.sessions[identity]["body"]
+                    self.assertEqual(request["request_model"], claimed)
+                    self.assertEqual(request["claimed_model"], claimed)
+                saved = self.app.current
+                self.assertEqual(saved["request_model"], claimed)
+                self.assertEqual(saved["claimed_model"], claimed)
+        self.assertEqual(self.store.path.read_bytes(), original)
+
+    def test_reference_only_candidate_cannot_start(self):
+        from copy import deepcopy
+        self.app.packages["gpt"] = deepcopy(PACKAGE)
+        self.app.packages["gpt"]["models"].append({"id": "other_known_external", "reference_only": True})
+        with self.assertRaises(ImportIssue):
+            self.app.launch(self.body() | {"claimed": "other_known_external"})
+        self.assertFalse(self.client.sessions)
+
     def claude_body(self):
         store = self.app.stores["claude"]
         for i in range(2):
@@ -131,7 +158,7 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(self.client.max_active, 2)
         for session in self.client.sessions.values():
             self.assertEqual(session["body"]["package_id"], "demo-claude")
-            self.assertEqual(session["body"]["request_model"], "claude-fable-5-1")
+            self.assertEqual(session["body"]["request_model"], body["claimed"])
         claude = self.app.state("claude")
         self.assertEqual(len(claude["history"]), 1)
         self.assertEqual(claude["history"][0]["mode"], "claude")
@@ -204,7 +231,7 @@ class DashboardTests(unittest.TestCase):
         with request("/api/bootstrap") as response:
             bootstrap = json.load(response)
             self.assertEqual(bootstrap["app"], "codex-relay-desk")
-            self.assertEqual(bootstrap["api_version"], 2)
+            self.assertEqual(bootstrap["api_version"], 3)
         for path, headers in [("/api/state", {}), ("/api/bootstrap", {"Origin": "https://evil.invalid"}),
                               ("/api/bootstrap", {"Host": "evil.invalid"}), ("/codex-providers.toml", {})]:
             with self.assertRaises(urllib.error.HTTPError):

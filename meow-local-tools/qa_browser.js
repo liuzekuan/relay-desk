@@ -32,6 +32,12 @@
   await wait(() => providers().length === 4);
   assert(state.history.length === initialHistory, 'CRUD triggered a test');
   document.querySelector('[data-view="desk"]').click();
+  const modelSelect = document.getElementById('claimed');
+  const chosenModel = modelSelect.options[1].value;
+  modelSelect.value = chosenModel;
+  modelSelect.dispatchEvent(new Event('change', {bubbles:true}));
+  assert(document.getElementById('page-meta').textContent.includes(chosenModel), 'Request model display did not follow selection');
+  assert(!document.getElementById('model-form'), 'Conflicting independent model form remains');
   document.getElementById('select-all').click();
   assert(selected.size === 4, 'Select all failed');
   document.getElementById('start').click();
@@ -39,6 +45,7 @@
   assert(document.getElementById('add').disabled, 'Config mutation must be disabled during a run');
   await wait(() => !state.busy && state.history.length > initialHistory);
   assert(state.history[0].rows.length === 4, 'Batch selection lost');
+  assert(state.history[0].claimed_model === chosenModel && state.history[0].request_model === chosenModel, 'Actual request model did not follow selection');
   assert(state.history[0].rows.some(r => r.status === 'failed'), 'Failure fixture absent');
   assert(state.history[0].rows.some(r => r.verdict === 'mismatch'), 'Mismatch fixture absent');
   document.querySelector('[data-filter="attention"]').click();
@@ -52,5 +59,5 @@
   document.getElementById('back-history').click();
   assert(document.getElementById('page-title').textContent.endsWith('历史批次'), 'Back to history failed');
   document.querySelector('[data-view="desk"]').click();
-  return {passed:true, checks:['provider add/edit/delete','key not returned','CRUD never runs tests','select all','batch progress','failure/mismatch results','attention filter','details','history navigation'], history:state.history.length};
+  return {passed:true, checks:['provider add/edit/delete','key not returned','CRUD never runs tests','selected model matches display and request','select all','batch progress','failure/mismatch results','attention filter','details','history navigation'], history:state.history.length};
 })()

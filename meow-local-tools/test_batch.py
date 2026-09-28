@@ -63,10 +63,12 @@ class BatchTests(unittest.TestCase):
         client = Disconnect(steps=1)
         first = BatchEngine(client, self.history, interval=0).run(demo_payloads(), PACKAGE, "gpt-6-astra")
         self.assertIsNone(first["finished_at"])
+        first["request_model"] = "legacy-custom-alias"
         starts = client.calls.count("/api/run/start")
         client.disconnected = False
         result = BatchEngine(client, self.history, interval=0).run(demo_payloads(), PACKAGE, "gpt-6-astra", existing=first)
         self.assertEqual(client.calls.count("/api/run/start"), starts)
+        self.assertEqual(result["request_model"], "legacy-custom-alias")
         self.assertFalse(any(r["status"] in PENDING for r in result["rows"]))
 
     def test_delta_only_compares_same_baseline_and_settings(self):
